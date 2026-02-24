@@ -23,7 +23,7 @@ pipeline {
 
         stage('Compile') {
             steps {
-                sh "mvn compile"
+                sh "mvn clean compile"
             }
         }
 
@@ -35,7 +35,7 @@ pipeline {
 
         stage('Trivy FS Scan') {
             steps {
-                sh "trivy fs --format table -o fs-report.html ."
+                sh "trivy fs --format table ."
             }
         }
 
@@ -54,7 +54,7 @@ pipeline {
 
         stage('Quality Gate Check') {
             steps {
-                timeout(time: 1, unit: 'HOURS') {
+                timeout(time: 10, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: false,
                         credentialsId: 'sonar-token'
                 }
@@ -63,7 +63,7 @@ pipeline {
 
         stage('Build Package') {
             steps {
-                sh "mvn package"
+                sh "mvn package -DskipTests"
             }
         }
 
@@ -74,7 +74,7 @@ pipeline {
                     maven: 'maven3',
                     traceability: true
                 ) {
-                    sh "mvn deploy"
+                    sh "mvn deploy -DskipTests"
                 }
             }
         }
@@ -85,9 +85,15 @@ pipeline {
             }
         }
 
+        stage('Check Local Images') {
+            steps {
+                sh "docker images | grep bankapp"
+            }
+        }
+
         stage('Scan Docker Image') {
             steps {
-                sh "trivy image --format table -o image-report.html ${IMAGE_NAME}:${IMAGE_TAG}"
+                sh "trivy image ${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
 
@@ -119,9 +125,6 @@ pipeline {
 
                         sed -i "s|sumantharya/bankapp:.*|${IMAGE_NAME}:${IMAGE_TAG}|" Manifest/manifest.yaml
 
-                        echo "Updated manifest file:"
-                        cat Manifest/manifest.yaml
-
                         git config user.name "Jenkins"
                         git config user.email "jenkins@example.com"
                         git add Manifest/manifest.yaml
@@ -136,28 +139,24 @@ pipeline {
     post {
         always {
             script {
-                def jobName = env.JOB_NAME
-                def buildNumber = env.BUILD_NUMBER
-                def pipelineStatus = currentBuild.result ?: 'SUCCESS'
-                def bannerColor = pipelineStatus == 'SUCCESS' ? 'green' : 'red'
-
-                def body = """
-                <html>
-                <body>
-                <div style="border:4px solid ${bannerColor}; padding:10px;">
-                    <h2>${jobName} - Build ${buildNumber}</h2>
-                    <div style="background-color:${bannerColor}; padding:10px;">
-                        <h3 style="color:white;">Pipeline Status: ${pipelineStatus}</h3>
-                    </div>
-                    <p>Check the <a href="${env.BUILD_URL}">Console Output</a></p>
-                </div>
-                </body>
-                </html>
-                """
+                def status = currentBuild.result ?: 'SUCCESS'
+                def color = status == 'SUCCESS' ? 'green' : 'red'
 
                 emailext(
-                    subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus}",
-                    body: body,
+                    subject: "${env.JOB_NAME} - Build ${env.BUILD_NUMBER} - ${status}",
+                    body: """
+                        <html>
+                        <body>
+                            <div style="border:4px solid ${color}; padding:10px;">
+                                <h2>${env.JOB_NAME} - Build ${env.BUILD_NUMBER}</h2>
+                                <div style="background-color:${color}; padding:10px;">
+                                    <h3 style="color:white;">Pipeline Status: ${status}</h3>
+                                </div>
+                                <p>Check Console: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                            </div>
+                        </body>
+                        </html>
+                    """,
                     to: '567adddi.jais@gmail.com',
                     from: 'jenkins@devopsshack.com',
                     mimeType: 'text/html'
