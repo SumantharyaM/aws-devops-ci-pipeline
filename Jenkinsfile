@@ -120,8 +120,8 @@ pipeline {
                     )
                 ]) {
                     sh """
-                        git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/jaiswaladi246/Mega-Project-CD.git
-                        cd Mega-Project-CD
+                        git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/SumantharyaM/aws-devops-cd-k8s.git
+                        cd aws-devops-cd-k8s
 
                         sed -i "s|sumantharya/bankapp:.*|${IMAGE_NAME}:${IMAGE_TAG}|" Manifest/manifest.yaml
 
